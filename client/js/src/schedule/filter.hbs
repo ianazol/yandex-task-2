@@ -1,0 +1,39 @@
+<form name="lectureFilter" method="post">
+    <div class="row">
+        <div class="col-3">
+            <div class="form-group">
+                <label for="from">Начало</label>
+                <input type="date" class="form-control" id="from" name="from" placeholder="Например, 2017-05-12" />
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="form-group">
+                <label for="to">Окончание</label>
+                <input type="date" class="form-control" id="to" name="to" placeholder="Например, 2017-05-12" />
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="form-group">
+                <label for="school">Школа</label>
+                <select name="school" class="form-control" id="school">
+                    <option value="">Все школы</option>
+                    {{#each schoolList}}
+                        <option value="{{_id}}">{{name}}</option>
+                    {{/each}}
+                </select>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="form-group">
+                <label for="classroom">Аудитория</label>
+                <select name="classroom" class="form-control" id="classroom">
+                    <option value="">Все аудитории</option>
+                    {{#each classroomList}}
+                        <option value="{{_id}}">{{name}}</option>
+                    {{/each}}
+                </select>
+            </div>
+        </div>
+    </div>
+    <button name="filter" type="submit" class="btn btn-primary lecture-save">Показать</button>
+</form>

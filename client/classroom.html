@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <title>Аудитории</title>
+</head>
+<body>
+<br/><br/>
+<div class="container">
+    <div class="row">
+        <div class="col-2">
+            <nav class="nav flex-column">
+                <a class="nav-link" href="/">Расписание</a>
+                <a class="nav-link" href="school.html">Школы</a>
+                <a class="nav-link active" href="classroom.html">Аудитории</a>
+                <a class="nav-link" href="lecture.html">Лекции</a>
+            </nav>
+        </div>
+        <div class="col-9">
+            <h4>Список аудиторий</h4>
+            <hr/>
+            <div class="classroomList">
+                <!--
+                Список аудиторий
+                Вставляется как результат шаблонизации в JS
+                -->
+            </div>
+            <br/>
+            <div class="jumbotron">
+                <h4>Добавить аудиторию</h4>
+                <hr/>
+                <form name="classroomAdd" method="post">
+                    <div class="form-group">
+                        <label for="name">Название аудитории</label>
+                        <input type="text" class="form-control" id="name" name="name" />
+                    </div>
+                    <div class="form-group">
+                        <label for="capacity">Вместимость</label>
+                        <input type="text" class="form-control" id="capacity" name="capacity" />
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Описание</label>
+                        <textarea name="description" class="form-control" id="description" rows="3"></textarea>
+                    </div>
+                    <button name="add" type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.0.6/handlebars.min.js"></script>
+<script src="js/build/templates.js"></script>
+<script src="js/build/app.js"></script>
+<script>
+    App.classroom.init();
+</script>
+</body>
+</html>

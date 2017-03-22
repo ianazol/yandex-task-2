@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <title>Расписание</title>
+</head>
+<body>
+<br/><br/>
+<div class="container">
+    <div class="row">
+        <div class="col-2">
+            <nav class="nav flex-column">
+                <a class="nav-link active" href="/">Расписание</a>
+                <a class="nav-link" href="school.html">Школы</a>
+                <a class="nav-link" href="classroom.html">Аудитории</a>
+                <a class="nav-link" href="lecture.html">Лекции</a>
+            </nav>
+        </div>
+        <div class="col-9">
+            <h4>Расписание</h4>
+            <br/>
+            <div class="jumbotron filter">
+                <!-- Фильтр -->
+            </div>
+            <hr/>
+            <div class="lectureList">
+                <!-- Список лекций -->
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.0.6/handlebars.min.js"></script>
+<script src="js/build/templates.js"></script>
+<script src="js/build/app.js"></script>
+<script>
+    App.schedule.init();
+</script>
+</body>
+</html>

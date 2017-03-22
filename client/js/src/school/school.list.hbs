@@ -1,0 +1,15 @@
+{{#each items}}
+<div class="school-item" data-id="{{_id}}" data-school='{{json}}'>
+    <div class="row">
+        <div class="col-8">
+            <b>{{name}}</b><br/>
+            Количество студентов: {{count}}
+        </div>
+        <div class="col-4">
+            <button type="button" class="btn btn-link btn-sm school-edit">Редактировать</button>
+            <button type="button" class="btn btn-link btn-sm school-delete">Удалить</button>
+        </div>
+    </div>
+    <hr/>
+</div>
+{{/each}}
