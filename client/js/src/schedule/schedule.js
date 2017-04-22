@@ -32,16 +32,11 @@ function showFilter() {
     });
 }
 
-// обработать сабмит формы фильтрации
-function filterSubmitHandler(event) {
-    let form = event.target,
-        filterBtn = form.elements.filter,
-        query = {};
-
-    filterBtn.disabled = true;
-
+// получить данные с формы фильтрации
+function getFilterValues(form) {
+    let query = {};
     [].forEach.call(form.elements, (element) => {
-        if (element !== filterBtn) {
+        if (element.type !== 'submit') {
             let value = form.elements[element.name].value;
             if (value) {
                 query[element.name] = value;
@@ -54,12 +49,27 @@ function filterSubmitHandler(event) {
         query.to = Date.parse(`${date.getFullYear()}-${leadZero(date.getMonth() + 1)}-${leadZero(date.getDate())} 23:59:59`);
     }
 
+    return query;
+}
+
+// обработать сабмит формы фильтрации
+function filterSubmitHandler(event) {
+    event.preventDefault();
+
+    let form = event.target,
+        filterBtn = form.elements.filter;
+
+    let query = getFilterValues(form);
+
+    if ((query.from && !Date.parse(query.from)) || (query.to && !Date.parse(query.to))) {
+        return alert('Некорректно введена дата, формат: YYYY-MM-DD');
+    }
+
+    filterBtn.disabled = true;
     showList(query)
         .then(() => {
             filterBtn.disabled = false;
         });
-
-    event.preventDefault();
 }
 
 function init() {

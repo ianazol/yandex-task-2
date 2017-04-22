@@ -81,11 +81,9 @@ function addFormSubmitHandler(event) {
     $addBtn.disabled = true;
     addSchool(schoolData)
         .then(showList)
+        .then(() => $addForm.reset())
         .catch((error) => showError(error.message))
-        .then(() => {
-            $addBtn.disabled = false;
-            $addForm.reset();
-        });
+        .then(() => $addBtn.disabled = false);
 
     event.preventDefault();
 }

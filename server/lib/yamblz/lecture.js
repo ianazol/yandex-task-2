@@ -151,7 +151,7 @@ function getList(query = {}) {
         delete query.to;
     }
 
-    return Lecture.find(query).populate("school classroom").exec();
+    return Lecture.find(query).sort("start").populate("school classroom").exec();
 }
 
 /**
