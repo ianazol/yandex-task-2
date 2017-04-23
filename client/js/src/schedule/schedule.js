@@ -44,11 +44,6 @@ function getFilterValues(form) {
         }
     });
 
-    if (query.to) {
-        let date = new Date(query.to);
-        query.to = Date.parse(`${date.getFullYear()}-${leadZero(date.getMonth() + 1)}-${leadZero(date.getDate())} 23:59:59`);
-    }
-
     return query;
 }
 
@@ -63,6 +58,11 @@ function filterSubmitHandler(event) {
 
     if ((query.from && !Date.parse(query.from)) || (query.to && !Date.parse(query.to))) {
         return alert('Некорректно введена дата, формат: YYYY-MM-DD');
+    }
+
+    if (query.to) {
+        let date = new Date(query.to);
+        query.to = Date.parse(`${date.getFullYear()}-${leadZero(date.getMonth() + 1)}-${leadZero(date.getDate())} 23:59:59`);
     }
 
     filterBtn.disabled = true;
