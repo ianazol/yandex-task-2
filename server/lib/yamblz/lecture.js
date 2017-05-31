@@ -127,7 +127,8 @@ function add(lectureData = {}) {
         .then(() => checkSchoolFree(lectureData.school, lectureData.start, lectureData.finish))
         .then(() => {
             let lecture = new Lecture(lectureData);
-            return lecture.save();
+            return lecture.save()
+                .then((lecture) => Lecture.populate(lecture, 'school classroom'));
         })
 }
 
@@ -179,7 +180,11 @@ function update(id, lectureData = {}) {
         .then(() => checkClassroomCapacity(fullLectureData.school, fullLectureData.classroom))
         .then(() => checkClassroomFree(fullLectureData.classroom, fullLectureData.start, fullLectureData.finish, id))
         .then(() => checkSchoolFree(fullLectureData.school, fullLectureData.start, fullLectureData.finish, id))
-        .then(() => Lecture.findOneAndUpdate({"_id": id}, {$set: lectureData}, {new: true}).exec());
+        .then(() => {
+            return Lecture.findOneAndUpdate({"_id": id}, {$set: lectureData}, {new: true})
+                .populate('school classroom')
+                .exec();
+        });
 }
 
 /**

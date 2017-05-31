@@ -6,22 +6,19 @@ const gulp = require('gulp'),
     gulpIf = require('gulp-if'),
     sourcemaps = require('gulp-sourcemaps'),
     plumber = require('gulp-plumber'),
-    handlebars = require("gulp-handlebars"),
     wrap = require('gulp-wrap'),
     declare = require('gulp-declare'),
     concat = require('gulp-concat');
 
 const path = {
     build: {
-        js: 'client/js/build'
+        js: 'client/build'
     },
     src: {
-        js: 'client/js/src/**/*.js',
-        htmlTmpl: 'client/js/src/**/*.hbs'
+        js: 'client/src/**/*.js',
     },
     watch: {
-        js: 'client/js/src/**/*.js',
-        htmlTmpl: 'client/js/src/**/*.hbs'
+        js: 'client/src/**/*.js',
     }
 };
 
@@ -29,14 +26,12 @@ const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === 'develop
 
 gulp.task('webpack', function(){
     let options = {
-        context: __dirname + '/client/js/src',
+        context: __dirname + '/client/src',
         entry: {
-            main: `./app`
+            main: `./`
         },
         output: {
-            path: __dirname + '/client/js/build',
-            libraryTarget: 'var',
-            library: "App",
+            path: __dirname + '/client/build',
             filename: "app.js"
         },
         watch: isDevelopment,
@@ -44,8 +39,8 @@ gulp.task('webpack', function(){
         module:  {
             loaders: [{
                 test:    /\.js$/,
-                include: __dirname + "/client/js/src",
-                loader:  'babel?presets[]=es2015'
+                include: __dirname + "/client/src",
+                loader:  'babel'
             }]
         },
         plugins: [
@@ -53,37 +48,17 @@ gulp.task('webpack', function(){
         ]
     };
 
-    return gulp.src(path.src.js)
+    return gulp.src('client/src/index.js')
         .pipe(plumber())
         .pipe(webpackStream(options, null))
         .pipe(gulpIf(!isDevelopment, uglify()))
         .pipe(gulp.dest(path.build.js));
 });
 
-gulp.task('templates', function(){
-    gulp.src(path.src.htmlTmpl)
-        .pipe(plumber())
-        .pipe(handlebars({
-            handlebars: require('handlebars')
-        }))
-        .pipe(wrap('Handlebars.template(<%= contents %>)'))
-        .pipe(declare({
-            namespace: 'ScheduleApp.templates',
-            noRedeclare: true
-        }))
-        .pipe(concat('templates.js'))
-        .pipe(uglify())
-        .pipe(gulp.dest(path.build.js));
-});
-
-
 gulp.task('watch', function () {
     watch([path.src.js], function (event, cb) {
         gulp.start('webpack');
     });
-    watch([path.watch.htmlTmpl], function(event, cb) {
-        gulp.start('templates');
-    });
 });
 
-gulp.task('default', ['webpack', 'templates', 'watch']);
+gulp.task('default', ['webpack', 'watch']);

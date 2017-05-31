@@ -5,6 +5,7 @@ const app = express();
 const database = require("./database");
 const port = process.env.PORT || 3000;
 const bodyParser = require("body-parser");
+const path = require("path");
 
 database.connect();
 
@@ -19,6 +20,10 @@ app.use(express.static('./client/'));
 require("./routes/school.routes")(app);
 require("./routes/classroom.routes")(app);
 require("./routes/lecture.routes")(app);
+
+app.get('*', function(req, res, next) {
+    res.sendFile(path.resolve('client', 'index.html'));
+});
 
 app.use(function(req, res){
     res.status(404).send('404 Not Found');
