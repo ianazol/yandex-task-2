@@ -90,10 +90,10 @@ function showError(msg) {
 
 // подготовить данные перед сохранением
 function prepareDataBeforeSaving(lectureData) {
-    lectureData.start = `${lectureData.date}T${lectureData.start}:00`;
-    lectureData.finish = `${lectureData.date}T${lectureData.finish}:00`;
-
-    return lectureData;
+    return Object.assign({}, lectureData, {
+        start: `${lectureData.date}T${lectureData.start}:00`,
+        finish: `${lectureData.date}T${lectureData.finish}:00`
+    });
 }
 
 // проверить данные

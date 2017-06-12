@@ -7,10 +7,32 @@
 function validateRequiredFields(obj, requiredFields) {
     for (let i = 0; i < requiredFields.length; i++) {
         if (!obj.hasOwnProperty(requiredFields[i]) || !obj[requiredFields[i]]) {
-            return new Error(`Свойство ${requiredFields[i]} не должно быть пустым`);
+            throw new Error(`Свойство ${requiredFields[i]} не должно быть пустым`);
         }
     }
-    return true;
 }
 
-module.exports = {validateRequiredFields};
+/**
+ * Проверить число на целое положительное значение
+ * @param {Number} value
+ * @returns {boolean}
+ */
+function isPositiveInteger(value) {
+    if (Number.isInteger(value) && value > 0) {
+        return true;
+    }
+}
+
+/**
+ * Обернуть value в массив
+ * @param {String|Number|Object} value
+ * @returns {Array}
+ */
+function wrapUpInArray(value) {
+    if (value && !Array.isArray(value)) {
+        return [value];
+    }
+    return value;
+}
+
+module.exports = {validateRequiredFields, isPositiveInteger, wrapUpInArray};

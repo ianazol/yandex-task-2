@@ -53,6 +53,24 @@ describe("school", function () {
             });
         });
 
+        it("should return rejected promise if school count is not a number", function () {
+            let invalidData = {name: "Школа 1", count: 'десять'};
+            let promise = yamblz.school.add(invalidData);
+            assert.isRejected(promise, Error, `Количество студентов должно быть целым положительным числом`);
+        });
+
+        it("should return rejected promise if school count is not a integer number", function () {
+            let invalidData = {name: "Школа 1", count: 10.5};
+            let promise = yamblz.school.add(invalidData);
+            assert.isRejected(promise, Error, `Количество студентов должно быть целым положительным числом`);
+        });
+
+        it("should return rejected promise if school count is negative value", function () {
+            let invalidData = {name: "Школа 1", count: -10};
+            let promise = yamblz.school.add(invalidData);
+            assert.isRejected(promise, Error, `Количество студентов должно быть целым положительным числом`);
+        });
+
         it("should create new object", function (done) {
             yamblz.school.add({name: "Школа 1", count: 10})
                 .then((result) => {
@@ -81,6 +99,21 @@ describe("school", function () {
         it("should return rejected promise if id is undefined", function (done) {
             let promise = yamblz.school.update();
             assert.isRejected(promise, Error, /Не передан id/).notify(done);
+        });
+
+        it("should return rejected promise if new count is not a number", function (done) {
+            let promise = yamblz.school.update(schoolWithLecture, {count: "десять"});
+            assert.isRejected(promise, Error, /Количество студентов должно быть целым положительным числом/).notify(done);
+        });
+
+        it("should return rejected promise if new count is not a integer number", function (done) {
+            let promise = yamblz.school.update(schoolWithLecture, {count: 10.5});
+            assert.isRejected(promise, Error, /Количество студентов должно быть целым положительным числом/).notify(done);
+        });
+
+        it("should return rejected promise if new count is not a positive value", function (done) {
+            let promise = yamblz.school.update(schoolWithLecture, {count: -10});
+            assert.isRejected(promise, Error, /Количество студентов должно быть целым положительным числом/).notify(done);
         });
 
         it("should return rejected promise if new count is more than capacity of the classroom in which lecture is scheduled", function (done) {

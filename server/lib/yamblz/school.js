@@ -2,7 +2,7 @@
 
 const School = require("../../models/school.model");
 const Lecture = require("../../models/lecture.model");
-const {validateRequiredFields} = require("./helper");
+const {validateRequiredFields, isPositiveInteger} = require("./helper");
 
 /**
  * Добавить школу
@@ -12,27 +12,11 @@ const {validateRequiredFields} = require("./helper");
  * @returns {Promise}
  */
 function add(schoolData = {}) {
-    const validationResult = validateRequiredFields(schoolData, ["name", "count"]);
-
-    if (validationResult !== true) {
-        return Promise.reject(validationResult);
-    }
-
-    schoolData.count = parseInt(schoolData.count);
-    if (Number.isNaN(schoolData.count)) {
-        return Promise.reject(new Error("Количество студентов должно быть целым числом"));
-    }
-
-    let school = new School(schoolData);
-    return school.save();
-}
-
-/**
- * Получить список всех школ
- * @returns {Promise}
- */
-function getList() {
-    return School.find().exec();
+    return validateNewSchoolData(schoolData)
+        .then(() => {
+            let school = new School(schoolData);
+            return school.save();
+        });
 }
 
 /**
@@ -44,65 +28,8 @@ function remove(id) {
     if (id === undefined) {
         return Promise.reject(new Error("Не передан id"));
     }
-
-    return Lecture.find({"school": id}).exec()
-        //запрет на удаление школы, для которой запланированы лекции
-        .then((lectures) => {
-            if (lectures.length > 0) {
-                throw new Error("Нельзя удалить школу, для которой запланированы лекции");
-            }
-        })
+    return checkSchoolIsFree(id)
         .then(() => School.remove({_id: id}).exec());
-}
-
-/**
- * Проверить, что новое количество студентов школы не больше вместимости аудитории, в которых запланированы лекции
- * @param {Array} schools
- * @param {Object} classroomCapacity
- * @param {String} schoolId - id школы
- * @param {Number} schoolCount - новое количество участников школы
- * @returns {boolean} - true если вместимсть аудитории >= количества студентов; иначе, false
- */
-function checkClassroomCapacity(schools, classroomCapacity, schoolId, schoolCount) {
-    schools.forEach((school) => {
-        if (!school._id.equals(schoolId)) {
-            schoolCount += school.count;
-        }
-    });
-
-    return classroomCapacity >= schoolCount;
-}
-
-/**
- * Проверить новые данные
- * @param id
- * @param schoolData
- * @returns {Promise}
- */
-function validateSchool(id, schoolData) {
-    if (id === undefined) {
-        return Promise.reject(new Error("Не передан id"));
-    }
-
-    if (schoolData.count === undefined) {
-        return Promise.resolve(schoolData);
-    } else {
-        schoolData.count = parseInt(schoolData.count);
-        if (Number.isNaN(schoolData.count)) {
-            return Promise.reject(new Error("Количество студентов должно быть целым числом"));
-        }
-    }
-
-    // проверим, можно ли изменить количество студентов
-    return Lecture.find({"school": {$in: [id]}}).populate("school classroom").exec()
-        .then((lectures) => {
-            schoolData.count = parseInt(schoolData.count);
-            lectures.forEach((lecture) => {
-                if (!checkClassroomCapacity(lecture.school, lecture.classroom.capacity, id, schoolData.count)) {
-                    throw new Error("Нельзя увеличить количество участников школы");
-                }
-            });
-        });
 }
 
 /**
@@ -112,10 +39,118 @@ function validateSchool(id, schoolData) {
  * @returns {Promise}
  */
 function update(id, schoolData = {}) {
-    return validateSchool(id, schoolData)
+    if (id === undefined) {
+        return Promise.reject(new Error("Не передан id"));
+    }
+    return validateUpdatedSchool(id, schoolData)
         .then(() => {
             return School.findOneAndUpdate({"_id": id}, {$set: schoolData}, {new: true}).exec();
         });
+}
+
+/**
+ * Получить список всех школ
+ * @returns {Promise}
+ */
+function getList() {
+    return School.find().exec();
+}
+
+/**
+ * Проверить переданные данные для новой школы
+ * @param {Object} school
+ * @returns {Promise}
+ */
+function validateNewSchoolData(school) {
+    try {
+        validateRequiredFields(school, ["name", "count"]);
+        validateCount(school.count);
+        return Promise.resolve(school);
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+/**
+ * Проверить новые данные для существующей школы
+ * @param {String} id
+ * @param {Object} schoolData
+ * @returns {Promise}
+ */
+function validateUpdatedSchool(id, schoolData) {
+    if (schoolData.count === undefined) {
+        return Promise.resolve(schoolData);
+    }
+    return Promise.resolve()
+        .then(() => validateCount(schoolData.count))
+        .then(() => checkClassroomCapacity(id, schoolData));
+}
+
+/**
+ * Проверить переданное значение количества студентов на целое положительное число
+ * @param {String|Number} count
+ */
+function validateCount(count) {
+    count = Number(count);
+    if (!isPositiveInteger(count)) {
+        throw new Error("Количество студентов должно быть целым положительным числом");
+    }
+}
+
+/**
+ * Проверить, что у школы нет запланированных лекций
+ * @param {String} schoolId
+ * @returns {Promise}
+ */
+function checkSchoolIsFree(schoolId) {
+    return getLecturesBySchool(schoolId)
+        .then((lectures) => {
+            if (lectures.length > 0) {
+                throw new Error("Нельзя удалить школу, для которой запланированы лекции");
+            }
+        });
+}
+
+/**
+ * Проверить, что новое количество студентов школы не больше вместимости аудитории, в которых запланированы лекции
+ * @param {String} schoolId
+ * @param {Object} schoolData
+ * @returns {Promise}
+ */
+function checkClassroomCapacity(schoolId, schoolData) {
+    return getLecturesBySchool(schoolId)
+        .then((lectures) => {
+            lectures.forEach((lecture) => {
+                let schools = replaceSchoolCountByNewValue(lecture.school, schoolId, schoolData.count);
+                if (lecture.classroom.capacity < sumStudentsCount(schools)) {
+                    throw new Error("Нельзя увеличить количество участников школы");
+                }
+            });
+        });
+}
+
+/**
+ * Обновить oldSchoolList новыми значениями
+ * @param {Array} oldSchoolList
+ * @param {String} replacedSchoolId - id школы,
+ * @param {Number} newSchoolCount - новое количество студентов
+ */
+function replaceSchoolCountByNewValue(oldSchoolList, replacedSchoolId, newSchoolCount) {
+    return oldSchoolList.map(school => {
+        if (school._id.equals(replacedSchoolId)) {
+            school.count = newSchoolCount;
+        }
+        return school;
+    });
+}
+
+/**
+ * Получить все лекции для конкретной школы
+ * @param {String} schoolId
+ * @returns {Promise}
+ */
+function getLecturesBySchool(schoolId) {
+    return Lecture.find({"school": {$in: [schoolId]}}).populate("school classroom").exec();
 }
 
 /**

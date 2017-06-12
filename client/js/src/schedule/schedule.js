@@ -62,7 +62,8 @@ function filterSubmitHandler(event) {
 
     if (query.to) {
         let date = new Date(query.to);
-        query.to = Date.parse(`${date.getFullYear()}-${leadZero(date.getMonth() + 1)}-${leadZero(date.getDate())} 23:59:59`);
+        let dateWithEndOfDay = new Date(date.getTime() + 24*60*60000 - 1);
+        query.to = Date.parse(dateWithEndOfDay);
     }
 
     filterBtn.disabled = true;
