@@ -33,7 +33,7 @@ describe("school", function () {
         database.connect();
         createSchoolWithLecture()
             .then((lecture) => {
-                schoolWithLecture = lecture.school[0];
+                schoolWithLecture = lecture.school[0]._id;
                 done();
             });
     });

@@ -2,7 +2,7 @@
 
 const Classroom = require("../../models/classroom.model");
 const Lecture = require("../../models/lecture.model");
-const {validateRequiredFields} = require("./helper");
+const {validateRequiredFields, isPositiveInteger} = require("./helper");
 const {sumStudentsCount} = require("./school");
 
 /**
@@ -14,27 +14,11 @@ const {sumStudentsCount} = require("./school");
  * @returns {Promise}
  */
 function add(classroomData = {}) {
-    const validationResult = validateRequiredFields(classroomData, ["name", "capacity", "description"]);
-
-    if (validationResult !== true) {
-        return Promise.reject(validationResult);
-    }
-
-    classroomData.capacity = parseInt(classroomData.capacity);
-    if (Number.isNaN(classroomData.capacity)) {
-        return Promise.reject(new Error("Вместимость аудитории должно быть целым числом"));
-    }
-
-    let classroom = new Classroom(classroomData);
-    return classroom.save();
-}
-
-/**
- * Получить список всех аудиторий
- * @returns {Promise}
- */
-function getList() {
-    return Classroom.find().exec();
+    return validateNewClassroomData(classroomData)
+        .then(() => {
+            let classroom = new Classroom(classroomData);
+            return classroom.save();
+        });
 }
 
 /**
@@ -46,47 +30,8 @@ function remove(id) {
     if (id === undefined) {
         return Promise.reject(new Error("Не передан id"));
     }
-
-    return Lecture.find({"classroom": id}).exec()
-        //запрет на удаление аудитории, если в ней запланированы лекции
-        .then((lectures) => {
-            if (lectures.length > 0) {
-                throw new Error("Нельзя удалить аудиторию, в которой запланированы лекции");
-            }
-        })
+    return checkClassroomIsFree(id)
         .then(() => Classroom.remove({_id: id}).exec());
-}
-
-/**
- * Проверить новые данные
- * @param {String} id
- * @param {Object} classroomData
- * @returns {Promise}
- */
-function validateClassroom(id, classroomData) {
-    if (id === undefined) {
-        return Promise.reject(new Error("Не передан id"));
-    }
-
-    if (classroomData.capacity === undefined) {
-        return Promise.resolve(classroomData);
-    } else {
-        classroomData.capacity = parseInt(classroomData.capacity);
-        if (Number.isNaN(classroomData.capacity)) {
-            return Promise.reject(new Error("Вместимость аудитории должно быть целым числом"));
-        }
-    }
-
-    //проверим, можно ли изменить вместимость аудитории, если в ней уже запланированы лекции
-    return Lecture.find({"classroom": id}).populate("school").exec()
-        .then((lectures) => {
-            classroomData.capacity = parseInt(classroomData.capacity) || 0;
-            lectures.forEach((lecture) => {
-                if (sumStudentsCount(lecture.school) > classroomData.capacity) {
-                    throw new Error("Нельзя уменьшить вместимость аудитории");
-                }
-            });
-        });
 }
 
 /**
@@ -96,12 +41,101 @@ function validateClassroom(id, classroomData) {
  * @returns {Promise}
  */
 function update(id, classroomData = {}) {
-    return validateClassroom(id, classroomData)
+    if (id === undefined) {
+        return Promise.reject(new Error("Не передан id"));
+    }
+    return validateUpdatedClassroom(id, classroomData)
         .then(() => {
-            return Classroom
-                .findOneAndUpdate({"_id": id}, {$set: classroomData}, {new: true})
-                .exec();
+            return Classroom.findOneAndUpdate({"_id": id}, {$set: classroomData}, {new: true}).exec();
         });
+}
+
+/**
+ * Получить список всех аудиторий
+ * @returns {Promise}
+ */
+function getList() {
+    return Classroom.find().exec();
+}
+
+/**
+ * Проверить переданные данные для новой аудитории
+ * @param {Object} classroom
+ * @returns {Promise}
+ */
+function validateNewClassroomData(classroom) {
+    try {
+        validateRequiredFields(classroom, ["name", "capacity", "description"]);
+        validateCapacity(classroom.capacity);
+        return Promise.resolve(classroom);
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+/**
+ * Проверить переданные данные для обновления аудитории
+ * @param {String} id
+ * @param {Object} classroomData
+ * @returns {Promise}
+ */
+function validateUpdatedClassroom(id, classroomData) {
+    if (classroomData.capacity === undefined) {
+        return Promise.resolve(classroomData);
+    }
+    return Promise.resolve()
+        .then(() => validateCapacity(classroomData.capacity))
+        .then(() => checkClassroomCapacity(id, classroomData));
+}
+
+/**
+ * Проверить вместимость аудитории на целое положительное значение
+ * @param {Number|String} capacity
+ */
+function validateCapacity(capacity) {
+    capacity = Number(capacity);
+    if (!isPositiveInteger(capacity)) {
+        throw new Error("Вместимость аудитории должно быть целым положительным числом");
+    }
+}
+
+/**
+ * Проверить, что в аудитории не запланированы лекции
+ * @param {String} classroomId
+ * @returns {Promise}
+ */
+function checkClassroomIsFree(classroomId) {
+    return getLecturesByClassroom(classroomId)
+        .then((lectures) => {
+            if (lectures.length > 0) {
+                throw new Error("Нельзя удалить аудиторию, в которой запланированы лекции");
+            }
+        });
+}
+
+/**
+ * Проверить, что вместимость аудитории не меньше количества студентов
+ * @param {String} id
+ * @param {Object} classroom
+ */
+function checkClassroomCapacity(id, classroom) {
+    return getLecturesByClassroom(id)
+        .then((lectures) => {
+            lectures.forEach((lecture) => {
+                if (sumStudentsCount(lecture.school) > classroom.capacity) {
+                    throw new Error("Нельзя уменьшить вместимость аудитории");
+                }
+            });
+        });
+}
+
+/**
+ * Получить все лекции, запланированные в конкретной аудитории
+ * @param {String} classroomId
+ * @returns {Promise}
+ */
+function getLecturesByClassroom(classroomId) {
+    return Lecture.find({"classroom": classroomId}).populate("school").exec();
 }
 
 module.exports = {add, getList, remove, update};

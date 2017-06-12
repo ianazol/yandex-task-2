@@ -3,101 +3,8 @@
 const Classroom = require("../../models/classroom.model");
 const School = require("../../models/school.model");
 const Lecture = require("../../models/lecture.model");
-const {validateRequiredFields, leadZero} = require("./helper");
+const {validateRequiredFields, wrapUpInArray} = require("./helper");
 const {sumStudentsCount} = require("./school");
-
-/**
- * Проверить вместимость аудитории
- * @param {Array} schoolIdList - массив id школ
- * @param {String} classroomId - id аудитории
- * @returns {Promise}
- */
-function checkClassroomCapacity(schoolIdList, classroomId) {
-    return Promise.all([
-        Classroom.findById(classroomId).exec(),
-        School.find({"_id": {$in: schoolIdList}}).exec()
-    ])
-        .then((results) => {
-            let classroom = results[0];
-            let schools = results[1];
-
-            if (!classroom) {
-                throw new Error("Аудитория не найдена");
-            }
-
-            if (schoolIdList.length !== schools.length) {
-                throw new Error("Школа не найдена");
-            }
-
-            if (sumStudentsCount(schools) > classroom.capacity) {
-                throw new Error("Вместимость аудитории меньше количества участников школы");
-            }
-        });
-}
-
-/**
- * Проверить, что в указанное время аудитория будет свободной
- * @param {String} id - id аудитории
- * @param {String} start - Дата начала планируемой лекции
- * @param {String} finish - Дата окончания планируемой лекции
- * @param {String} excludingLectureId - id лекции, которую надо исключить из поиска
- * @returns {Promise}
- */
-function checkClassroomFree(id, start, finish, excludingLectureId) {
-    return Lecture.find({
-        $and: [
-            {"_id": {$ne: excludingLectureId}},
-            {"classroom": id},
-            {"start": {$lt: finish}},
-            {"finish": {$gt: start}},
-        ]
-    })
-        .exec()
-        .then((lectures) => {
-            if (lectures.length > 0) {
-                throw new Error("Аудитория в указанное время будет занята");
-            }
-        });
-}
-
-/**
- * Проверить, что в указанное время у школ не будет других лекций
- * @param {Array} school - id школы/школ
- * @param {String} start - Дата начала планируемой лекции
- * @param {String} finish - Дата окончания планируемой лекции
- * @param {String} excludingLectureId - id лекции, которую надо исключить из поиска
- * @returns {Promise}
- */
-function checkSchoolFree(school, start, finish, excludingLectureId) {
-    return Lecture.find({
-        $and: [
-            {"_id": {$ne: excludingLectureId}},
-            {"school": {$in: school}},
-            {"start": {$lt: finish}},
-            {"finish": {$gt: start}},
-        ]
-    })
-        .exec()
-        .then((lectures) => {
-            if (lectures.length > 0) {
-                throw new Error("У школы в указанное время будет другая лекция");
-            }
-        });
-}
-
-/**
- * Валидация дат
- * @param {String} start
- * @param {String} finish
- * @returns {Promise}
- */
-function validateDates(start, finish) {
-    if (Date.parse(start) > Date.parse(finish)) {
-        return Promise.reject(new Error("Начало лекции не может быть позже чем ее окончание"));
-    }
-
-    return Promise.resolve();
-}
 
 /**
  * Добавить лекцию
@@ -111,25 +18,56 @@ function validateDates(start, finish) {
  * @returns {Promise}
  */
 function add(lectureData = {}) {
-    let validationResult = validateRequiredFields(lectureData, ["name", "lecturer", "start", "finish", "school", "classroom"]);
+    lectureData.school = wrapUpInArray(lectureData.school);
 
-    if (validationResult !== true) {
-        return Promise.reject(validationResult);
-    }
-
-    if (!Array.isArray(lectureData.school)) {
-        lectureData.school = [lectureData.school];
-    }
-
-    return validateDates(lectureData.start, lectureData.finish)
-        .then(() => checkClassroomCapacity(lectureData.school, lectureData.classroom))
-        .then(() => checkClassroomFree(lectureData.classroom, lectureData.start, lectureData.finish))
-        .then(() => checkSchoolFree(lectureData.school, lectureData.start, lectureData.finish))
+    return validateNewLectureData(lectureData)
+        .then(checkClassroomAndSchoolIsAvailable)
         .then(() => {
             let lecture = new Lecture(lectureData);
             return lecture.save()
                 .then((lecture) => Lecture.populate(lecture, 'school classroom'));
         })
+}
+
+/**
+ * Удалить лекцию
+ * @param {String} id
+ * @returns {Promise}
+ */
+function remove(id) {
+    if (id === undefined) {
+        return Promise.reject(new Error("Не передан id"));
+    }
+
+    return Lecture.remove({_id: id}).exec();
+}
+
+/**
+ * Обновить лекцию
+ * @param {String} id
+ * @param {Object} lectureData
+ * @returns {Promise}
+ */
+function update(id, lectureData = {}) {
+    let fullLectureData = {};
+
+    if (id === undefined) {
+        return Promise.reject(new Error("Не передан id"));
+    }
+
+    if (lectureData.school !== undefined) {
+        lectureData.school = wrapUpInArray(lectureData.school);
+    }
+
+    return fillWithOldData(id, lectureData)
+        .then((result) => fullLectureData = result)
+        .then(() => validateDates(fullLectureData.start, fullLectureData.finish))
+        .then(() => checkClassroomAndSchoolIsAvailable(fullLectureData))
+        .then(() => {
+            return Lecture.findOneAndUpdate({"_id": id}, {$set: lectureData}, {new: true})
+                .populate('school classroom')
+                .exec()
+        });
 }
 
 /**
@@ -156,48 +94,133 @@ function getList(query = {}) {
 }
 
 /**
- * Обновить лекцию
- * @param {String} id
- * @param {Object} lectureData
+ * Проверить переданные данные для новой лекции
+ * @param {Object} lecture
  * @returns {Promise}
  */
-function update(id, lectureData = {}) {
-    let fullLectureData = {};
-
-    if (id === undefined) {
-        return Promise.reject(new Error("Не передан id"));
+function validateNewLectureData(lecture) {
+    try {
+        validateRequiredFields(lecture, ["name", "lecturer", "start", "finish", "school", "classroom"]);
+        validateDates(lecture.start, lecture.finish);
+        return Promise.resolve(lecture);
+    } catch (error) {
+        return Promise.reject(error);
     }
+}
 
-    if (lectureData.school !== undefined && !Array.isArray(lectureData.school)) {
-        lectureData.school = [lectureData.school];
-    }
+/**
+ * Проверить аудиторию и школы
+ * @param {Object} lecture
+ * @returns {Promise}
+ */
+function checkClassroomAndSchoolIsAvailable(lecture) {
+    return checkClassroomCapacity(lecture)
+        .then(() => checkClassroomFree(lecture))
+        .then(() => checkSchoolFree(lecture));
+}
 
-    return Lecture.findById(id).exec()
-        .then((result) => {
-            fullLectureData = Object.assign(result, lectureData);
-            return validateDates(fullLectureData.start, fullLectureData.finish);
-        })
-        .then(() => checkClassroomCapacity(fullLectureData.school, fullLectureData.classroom))
-        .then(() => checkClassroomFree(fullLectureData.classroom, fullLectureData.start, fullLectureData.finish, id))
-        .then(() => checkSchoolFree(fullLectureData.school, fullLectureData.start, fullLectureData.finish, id))
-        .then(() => {
-            return Lecture.findOneAndUpdate({"_id": id}, {$set: lectureData}, {new: true})
-                .populate('school classroom')
-                .exec();
+/**
+ * Заполнить объект с новыми данными недостающей информацией из БД
+ * @param {String} lectureID
+ * @param {Object} newLectureData
+ * @returns {Promise}
+ */
+function fillWithOldData(lectureID, newLectureData) {
+    return Lecture.findById(lectureID).exec()
+        .then((oldLectureData) => {
+            return Object.assign(oldLectureData, newLectureData);
         });
 }
 
 /**
- * Удалить лекцию
- * @param {String} id
+ * Проверить вместимость аудитории
+ * @param {Array} school - массив id школ
+ * @param {String} classroom - id аудитории
  * @returns {Promise}
  */
-function remove(id) {
-    if (id === undefined) {
-        return Promise.reject(new Error("Не передан id"));
-    }
+function checkClassroomCapacity({school, classroom}) {
+    return Promise.all([
+        Classroom.findById(classroom).exec(),
+        School.find({"_id": {$in: school}}).exec()
+    ])
+        .then((results) => {
+            let classroom = results[0];
+            let schools = results[1];
 
-    return Lecture.remove({_id: id}).exec();
+            if (!classroom) {
+                throw new Error("Аудитория не найдена");
+            }
+
+            if (school.length !== schools.length) {
+                throw new Error("Школа не найдена");
+            }
+
+            if (sumStudentsCount(schools) > classroom.capacity) {
+                throw new Error("Вместимость аудитории меньше количества участников школы");
+            }
+        });
+}
+
+/**
+ * Проверить, что в указанное время аудитория будет свободной
+ * @param {Object} lectureData
+ * @returns {Promise}
+ */
+function checkClassroomFree(lectureData) {
+    let {classroom, start, finish} = lectureData;
+    let excludingLectureId = lectureData._id;
+
+    return Lecture.find({
+        $and: [
+            {"_id": {$ne: excludingLectureId}},
+            {"classroom": classroom},
+            {"start": {$lt: finish}},
+            {"finish": {$gt: start}},
+        ]
+    })
+        .exec()
+        .then((lectures) => {
+            if (lectures.length > 0) {
+                throw new Error("Аудитория в указанное время будет занята");
+            }
+        });
+}
+
+/**
+ * Проверить, что в указанное время у школ не будет других лекций
+ * @param {Object} lectureData
+ * @returns {Promise}
+ */
+function checkSchoolFree(lectureData) {
+    let {school, start, finish} = lectureData;
+    let excludingLectureId = lectureData._id;
+
+    return Lecture.find({
+        $and: [
+            {"_id": {$ne: excludingLectureId}},
+            {"school": {$in: school}},
+            {"start": {$lt: finish}},
+            {"finish": {$gt: start}},
+        ]
+    })
+        .exec()
+        .then((lectures) => {
+            if (lectures.length > 0) {
+                throw new Error("У школы в указанное время будет другая лекция");
+            }
+        });
+}
+
+/**
+ * Валидация дат
+ * @param {String} start
+ * @param {String} finish
+ * @returns {Promise}
+ */
+function validateDates(start, finish) {
+    if (Date.parse(start) > Date.parse(finish)) {
+        throw new Error("Начало лекции не может быть позже чем ее окончание");
+    }
 }
 
 module.exports = {add, getList, update, remove};
